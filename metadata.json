@@ -1,0 +1,5 @@
+{
+  "name": "STPS (Student Tracking Point System)",
+  "description": "A gamified student evaluation platform with a 1000-point tracking algorithm, behavior card system, and MCQ engine.",
+  "requestFramePermissions": []
+}
