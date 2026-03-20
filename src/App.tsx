@@ -4,10 +4,12 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { Dashboard } from './pages/Dashboard';
+import { Toaster } from 'sonner';
 
 export default function App() {
   return (
     <AuthProvider>
+      <Toaster position="top-right" richColors closeButton />
       <Router>
         <Routes>
           <Route path="/login" element={<LoginPage />} />

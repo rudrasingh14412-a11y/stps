@@ -1,0 +1,152 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (request.auth.token.email == "rudrasingh14412@gmail.com" ||
+         (exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'SUPER_ADMIN'));
+    }
+
+    function isPrincipal() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'PRINCIPAL';
+    }
+
+    function isStaff() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role in ['SUPER_ADMIN', 'PRINCIPAL', 'HOD', 'CLASS_TEACHER', 'SUBJECT_TEACHER', 'SPORTS_TEACHER'];
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidProfile(data) {
+      return hasRequiredFields(['id', 'email', 'full_name', 'role', 'status', 'created_at']) &&
+             data.id is string &&
+             isValidEmail(data.email) &&
+             data.full_name is string && data.full_name.size() > 0 && data.full_name.size() < 100 &&
+             data.role in ['SUPER_ADMIN', 'PRINCIPAL', 'HOD', 'CLASS_TEACHER', 'SUBJECT_TEACHER', 'SPORTS_TEACHER', 'STUDENT'] &&
+             data.status in ['PENDING', 'APPROVED', 'SUSPENDED'] &&
+             isValidDateString(data.created_at);
+    }
+
+    function isValidCollege(data) {
+      return hasRequiredFields(['id', 'name', 'created_at']) &&
+             data.id is string &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             isValidDateString(data.created_at);
+    }
+
+    function isValidCommunityPost(data) {
+      return hasRequiredFields(['id', 'author_id', 'college_id', 'content', 'is_poll', 'created_at']) &&
+             data.id is string &&
+             data.author_id is string &&
+             data.college_id is string &&
+             data.content is string && data.content.size() > 0 && data.content.size() < 5000 &&
+             data.is_poll is bool &&
+             isValidDateString(data.created_at);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /profiles/{profileId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidProfile(request.resource.data) && (isOwner(profileId) || isAdmin());
+      allow update: if isAuthenticated() && isValidProfile(request.resource.data) && (isOwner(profileId) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /colleges/{collegeId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidCollege(request.resource.data);
+      allow update: if isAdmin() && isValidCollege(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /classes/{classId} {
+      allow read: if true;
+      allow create: if (isAdmin() || isPrincipal()) && hasRequiredFields(['id', 'name', 'college_id', 'created_at']);
+      allow update: if (isAdmin() || isPrincipal());
+      allow delete: if isAdmin();
+    }
+
+    match /community_posts/{postId} {
+      allow read: if isAuthenticated();
+      allow create: if isStaff() && isValidCommunityPost(request.resource.data);
+      allow update: if (isStaff() && resource.data.author_id == request.auth.uid) || isAdmin();
+      allow delete: if (isStaff() && resource.data.author_id == request.auth.uid) || isAdmin();
+    }
+
+    match /poll_votes/{voteId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && hasRequiredFields(['id', 'post_id', 'user_id', 'option_index', 'created_at']);
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    match /scores/{studentId} {
+      allow read: if isOwner(studentId) || isStaff();
+      allow write: if isStaff();
+    }
+
+    match /behavior_cards/{cardId} {
+      allow read: if isAuthenticated() && (resource.data.student_id == request.auth.uid || isStaff());
+      allow create: if isStaff();
+      allow update, delete: if isAdmin();
+    }
+
+    match /quizzes/{quizId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isStaff();
+      allow delete: if isAdmin();
+    }
+
+    match /quiz_attempts/{attemptId} {
+      allow read: if isAuthenticated() && (resource.data.student_id == request.auth.uid || isStaff());
+      allow create: if isAuthenticated() && request.resource.data.student_id == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    match /peer_evaluations/{evalId} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      allow update, delete: if isAdmin();
+    }
+
+    match /{path=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

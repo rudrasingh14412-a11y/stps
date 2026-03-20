@@ -13,15 +13,15 @@ export const Card = ({ className, title, subtitle, children, ...props }: CardPro
   return (
     <div
       className={cn(
-        'rounded-2xl border border-zinc-100 bg-white p-6 shadow-sm',
+        'cool-card',
         className
       )}
       {...props}
     >
       {(title || subtitle) && (
         <div className="mb-6">
-          {title && <h3 className="text-lg font-semibold text-zinc-900">{title}</h3>}
-          {subtitle && <p className="text-sm text-zinc-500">{subtitle}</p>}
+          {title && <h3 className="text-xl font-black text-zinc-900 uppercase tracking-tight">{title}</h3>}
+          {subtitle && <p className="text-sm font-medium text-zinc-500">{subtitle}</p>}
         </div>
       )}
       {children}

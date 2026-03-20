@@ -1,0 +1,153 @@
+{
+  "entities": {
+    "Profile": {
+      "title": "Profile",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "full_name": { "type": "string" },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN", "PRINCIPAL", "HOD", "CLASS_TEACHER", "SUBJECT_TEACHER", "SPORTS_TEACHER", "STUDENT"] },
+        "college_id": { "type": "string" },
+        "class_id": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "SUSPENDED"] },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "email", "full_name", "role", "status", "created_at"]
+    },
+    "College": {
+      "title": "College",
+      "description": "College information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "created_at"]
+    },
+    "Class": {
+      "title": "Class",
+      "description": "Class information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "college_id": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "college_id", "created_at"]
+    },
+    "Score": {
+      "title": "Score",
+      "description": "Student academic scores",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "student_id": { "type": "string" },
+        "semester": { "type": "number" },
+        "academics": { "type": "number" },
+        "attendance": { "type": "number" },
+        "behavior": { "type": "number" },
+        "internal": { "type": "number" },
+        "sports": { "type": "number" },
+        "total": { "type": "number" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "student_id", "semester", "academics", "attendance", "behavior", "internal", "sports", "total", "updated_at"]
+    },
+    "BehaviorCard": {
+      "title": "BehaviorCard",
+      "description": "Behavioral cards issued to students",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "student_id": { "type": "string" },
+        "teacher_id": { "type": "string" },
+        "type": { "type": "string", "enum": ["GREEN", "BLUE", "RED"] },
+        "reason": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "student_id", "teacher_id", "type", "reason", "created_at"]
+    },
+    "Quiz": {
+      "title": "Quiz",
+      "description": "Quiz information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "hod_id": { "type": "string" },
+        "class_id": { "type": "string" },
+        "max_points": { "type": "number" },
+        "questions": { "type": "array" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "hod_id", "class_id", "max_points", "questions", "created_at"]
+    },
+    "CommunityPost": {
+      "title": "CommunityPost",
+      "description": "Community posts and polls",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "author_id": { "type": "string" },
+        "college_id": { "type": "string" },
+        "class_id": { "type": "string" },
+        "content": { "type": "string" },
+        "is_poll": { "type": "boolean" },
+        "poll_options": { "type": "array" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "author_id", "college_id", "content", "is_poll", "created_at"]
+    },
+    "PollVote": {
+      "title": "PollVote",
+      "description": "Votes on community polls",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "post_id": { "type": "string" },
+        "user_id": { "type": "string" },
+        "option_index": { "type": "number" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "post_id", "user_id", "option_index", "created_at"]
+    }
+  },
+  "firestore": {
+    "/profiles/{profileId}": {
+      "schema": "Profile",
+      "description": "User profiles"
+    },
+    "/colleges/{collegeId}": {
+      "schema": "College",
+      "description": "Colleges"
+    },
+    "/classes/{classId}": {
+      "schema": "Class",
+      "description": "Classes"
+    },
+    "/scores/{scoreId}": {
+      "schema": "Score",
+      "description": "Student scores"
+    },
+    "/behavior_cards/{cardId}": {
+      "schema": "BehaviorCard",
+      "description": "Behavioral cards"
+    },
+    "/quizzes/{quizId}": {
+      "schema": "Quiz",
+      "description": "Quizzes"
+    },
+    "/community_posts/{postId}": {
+      "schema": "CommunityPost",
+      "description": "Community posts"
+    },
+    "/poll_votes/{voteId}": {
+      "schema": "PollVote",
+      "description": "Poll votes"
+    }
+  }
+}

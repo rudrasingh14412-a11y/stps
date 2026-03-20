@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { auth, db } from '../lib/firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { collection, getDocs, query, where, setDoc, doc } from 'firebase/firestore';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
-import { GraduationCap } from 'lucide-react';
-import { UserRole, Class, College } from '../types';
+import { GraduationCap, ArrowRight, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { UserRole, Class, College, Profile } from '../types';
 import { cn } from '../lib/utils';
+import { handleFirestoreError, OperationType } from '../contexts/AuthContext';
+import { motion } from 'motion/react';
 
 export function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -34,13 +38,30 @@ export function RegisterPage() {
   }, [collegeId]);
 
   async function fetchColleges() {
-    const { data } = await supabase.from('colleges').select('*');
-    if (data) setColleges(data);
+    try {
+      const querySnapshot = await getDocs(collection(db, 'colleges'));
+      const collegeList = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as College[];
+      setColleges(collegeList);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.LIST, 'colleges');
+    }
   }
 
   async function fetchClasses(cid: string) {
-    const { data } = await supabase.from('classes').select('*').eq('college_id', cid);
-    if (data) setClasses(data);
+    try {
+      const q = query(collection(db, 'classes'), where('college_id', '==', cid));
+      const querySnapshot = await getDocs(q);
+      const classList = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Class[];
+      setClasses(classList);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.LIST, 'classes');
+    }
   }
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -49,25 +70,21 @@ export function RegisterPage() {
     setError(null);
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
 
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('Registration failed');
-
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: authData.user.id,
+      const profile: Profile = {
+        id: user.uid,
         email,
         full_name: fullName,
         role,
         college_id: collegeId,
-        class_id: role === 'STUDENT' ? classId : null,
+        class_id: role === 'STUDENT' ? classId : undefined,
         status: role === 'STUDENT' ? 'APPROVED' : 'PENDING',
-      });
+        created_at: new Date().toISOString(),
+      };
 
-      if (profileError) throw profileError;
+      await setDoc(doc(db, 'profiles', user.uid), profile);
 
       if (role === 'STUDENT') {
         navigate('/dashboard');
@@ -82,113 +99,149 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 p-6">
-      <div className="w-full max-w-md space-y-8">
-        <div className="text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-lg">
-            <GraduationCap size={28} />
+    <div className="flex min-h-screen items-center justify-center bg-white p-6 font-sans">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-lg space-y-8"
+      >
+        <div className="text-center space-y-4">
+          <motion.div 
+            whileHover={{ scale: 1.1, rotate: -5 }}
+            className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl border-4 border-black bg-primary text-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
+          >
+            <GraduationCap size={48} strokeWidth={3} />
+          </motion.div>
+          <div className="space-y-1">
+            <h1 className="text-5xl font-black tracking-tighter text-black uppercase italic leading-none">Join STPS</h1>
+            <p className="text-sm font-bold text-zinc-500 uppercase tracking-[0.2em]">Create your account to start tracking</p>
           </div>
-          <h1 className="mt-6 text-3xl font-bold tracking-tight text-zinc-900">Join STPS</h1>
-          <p className="mt-2 text-sm text-zinc-500">Create your account to start tracking</p>
         </div>
 
-        <Card>
-          <form onSubmit={handleRegister} className="space-y-4">
-            <Input
-              label="Full Name"
-              placeholder="John Doe"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              required
-            />
-            <Input
-              label="Email Address"
-              type="email"
-              placeholder="name@college.edu"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            <Input
-              label="Password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Role</label>
-              <select
-                className="flex h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                value={role}
-                onChange={(e) => setRole(e.target.value as UserRole)}
-              >
-                <option value="STUDENT">Student</option>
-                <option value="HOD">HOD</option>
-                <option value="CLASS_TEACHER">Class Teacher</option>
-                <option value="SUBJECT_TEACHER">Subject Teacher</option>
-                <option value="SPORTS_TEACHER">Sports Teacher</option>
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">College</label>
-              <select
-                className="flex h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                value={collegeId}
-                onChange={(e) => setCollegeId(e.target.value)}
+        <Card className="p-8 sm:p-12 border-4 border-black shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] bg-white">
+          <form onSubmit={handleRegister} className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <Input
+                label="Full Name"
+                placeholder="John Doe"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
                 required
-              >
-                <option value="">Select a college</option>
-                {colleges.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-
-            {role === 'STUDENT' && (
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Class</label>
+                className="font-bold"
+              />
+              <Input
+                label="Email Address"
+                type="email"
+                placeholder="name@college.edu"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="font-bold"
+              />
+              <Input
+                label="Password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="font-bold"
+              />
+              
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-zinc-500">Role</label>
                 <select
-                  className="flex h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                  value={classId}
-                  onChange={(e) => setClassId(e.target.value)}
-                  required
-                  disabled={!collegeId}
+                  className="flex h-12 w-full rounded-xl border-2 border-black bg-white px-4 py-2 text-sm font-bold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/30 transition-all"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as UserRole)}
                 >
-                  <option value="">Select a class</option>
-                  {classes.map((c) => (
+                  <option value="STUDENT">Student</option>
+                  <option value="HOD">HOD</option>
+                  <option value="CLASS_TEACHER">Class Teacher</option>
+                  <option value="SUBJECT_TEACHER">Subject Teacher</option>
+                  <option value="SPORTS_TEACHER">Sports Teacher</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-zinc-500">College</label>
+                <select
+                  className="flex h-12 w-full rounded-xl border-2 border-black bg-white px-4 py-2 text-sm font-bold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/30 transition-all"
+                  value={collegeId}
+                  onChange={(e) => setCollegeId(e.target.value)}
+                  required
+                >
+                  <option value="">Select a college</option>
+                  {colleges.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
-                {!collegeId && <p className="text-[10px] text-zinc-400">Please select a college first</p>}
-                {collegeId && classes.length === 0 && <p className="text-[10px] text-amber-500">No classes found for this college</p>}
               </div>
-            )}
+
+              {role === 'STUDENT' && (
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase tracking-widest text-zinc-500">Class</label>
+                  <select
+                    className="flex h-12 w-full rounded-xl border-2 border-black bg-white px-4 py-2 text-sm font-bold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/30 transition-all disabled:bg-zinc-100 disabled:cursor-not-allowed"
+                    value={classId}
+                    onChange={(e) => setClassId(e.target.value)}
+                    required
+                    disabled={!collegeId}
+                  >
+                    <option value="">Select a class</option>
+                    {classes.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                  {!collegeId && <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-tighter">Please select a college first</p>}
+                  {collegeId && classes.length === 0 && <p className="text-[10px] font-bold text-rose-500 uppercase tracking-tighter">No classes found for this college</p>}
+                </div>
+              )}
+            </div>
 
             {error && (
-              <p className={cn(
-                "text-xs",
-                error.includes('successful') ? "text-emerald-600" : "text-red-500"
-              )}>
-                {error}
-              </p>
+              <motion.div 
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className={cn(
+                  "flex items-start gap-3 rounded-xl border-2 border-black p-4 text-sm font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]",
+                  error.includes('successful') ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
+                )}
+              >
+                {error.includes('successful') ? <CheckCircle2 className="h-5 w-5 shrink-0" /> : <ShieldAlert className="h-5 w-5 shrink-0" />}
+                <p>{error}</p>
+              </motion.div>
             )}
             
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Creating account...' : 'Register'}
+            <Button 
+              type="submit" 
+              className="w-full h-14 text-xl font-black uppercase tracking-widest shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all" 
+              disabled={loading}
+            >
+              {loading ? 'Creating account...' : (
+                <span className="flex items-center gap-2">
+                  Register <ArrowRight size={24} strokeWidth={3} />
+                </span>
+              )}
             </Button>
           </form>
-          <div className="mt-6 text-center text-sm">
-            <span className="text-zinc-500">Already have an account? </span>
-            <Link to="/login" className="font-semibold text-indigo-600 hover:text-indigo-500">
-              Sign in here
-            </Link>
+
+          <div className="mt-10 text-center">
+            <p className="text-sm font-bold text-zinc-500 uppercase tracking-wider">
+              Already have an account?{' '}
+              <Link to="/login" className="text-black underline decoration-primary decoration-4 underline-offset-4 hover:bg-primary transition-colors px-1">
+                Sign in here
+              </Link>
+            </p>
           </div>
         </Card>
-      </div>
+
+        <div className="text-center">
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400">
+            Join the community of high achievers
+          </p>
+        </div>
+      </motion.div>
     </div>
   );
 }
